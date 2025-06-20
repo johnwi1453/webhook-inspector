@@ -6,10 +6,9 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY . . 
+COPY . .
 
-RUN ls -la /app
-RUN go build -o /app/server main.go
+RUN ls -la /app && go build -v -o /app/server main.go
 
 EXPOSE 8080
 CMD ["/app/server"]

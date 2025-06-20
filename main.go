@@ -3,9 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
+	"webhook-inspector/internal/handlers"
+	"webhook-inspector/internal/redis"
 
 	"github.com/go-chi/chi/v5"
-	"webhook-inspector/internal/redis"
 )
 
 func main() {
@@ -15,6 +16,17 @@ func main() {
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
+	})
+
+	r.Route("/api", func(r chi.Router) {
+		r.Route("/hooks", func(r chi.Router) {
+			r.Post("/{token}", handlers.HandleWebhook)
+		})
+	})
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("⚠️  No matching route for %s %s\n", r.Method, r.URL.Path)
+		http.NotFound(w, r)
 	})
 
 	log.Println("Starting server on :8080")
