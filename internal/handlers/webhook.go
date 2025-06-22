@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"sort"
 	"time"
 
+	"webhook-inspector/internal/models"
 	"webhook-inspector/internal/redis"
 
 	"github.com/go-chi/chi/v5"
@@ -37,23 +40,63 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	const MaxRequestsPerToken = 5
+
+	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
 
+	// Generate uuid and key for redis storage
 	id := uuid.New().String()
-
 	key := fmt.Sprintf("hooks:%s:%s", token, id)
 
-	err = redis.Client.Set(context.Background(), key, body, 24*time.Hour).Err()
+	// Map request to webhook data model
+	payload := models.WebhookPayload{
+		ID:        id,
+		Method:    r.Method,
+		Headers:   r.Header,
+		Body:      string(bodyBytes),
+		Timestamp: time.Now().UTC(),
+	}
+
+	// Format into json data
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		http.Error(w, "failed parse request body into json", http.StatusInternalServerError)
+		return
+	}
+
+	countKey := fmt.Sprintf("hooks:%s:count", token)
+
+	count, err := redis.Client.Incr(context.Background(), countKey).Result()
+	if err != nil {
+		http.Error(w, "failed to track webhook usage", http.StatusInternalServerError)
+		return
+	}
+
+	if count == 1 {
+		// first time we've seen this token — set TTL for 24h
+		redis.Client.Expire(context.Background(), countKey, 24*time.Hour)
+	}
+
+	if count > MaxRequestsPerToken {
+		log.Printf("Token %s blocked (rate limit %d)", token, count)
+		http.Error(w, "rate limit exceeded for this token", http.StatusTooManyRequests)
+		return
+	}
+
+	// Write webhook into redis
+	err = redis.Client.Set(context.Background(), key, jsonData, 24*time.Hour).Err()
 	if err != nil {
 		http.Error(w, "failed to save webhook", http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Printf("✅ Saved webhook with ID %s for token %s\n", id, token)
+	fmt.Printf("Saved webhook with ID %s for token %s\n", id, token)
+	remaining := 5 - count
+	w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Webhook received"))
 }
@@ -73,24 +116,32 @@ func GetWebhookLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var logs []map[string]interface{}
+	var logs []models.WebhookPayload
+
+	// Get logs matching our pattern into logs
 	for _, key := range keys {
 		val, err := redis.Client.Get(context.Background(), key).Result()
 		if err != nil {
 			continue
 		}
 
-		var parsed map[string]interface{}
+		var parsed models.WebhookPayload
 		if err := json.Unmarshal([]byte(val), &parsed); err != nil {
-			continue // skip if the JSON can't be parsed
+			continue // skip invalid entries
 		}
 
 		logs = append(logs, parsed)
 	}
 
+	// Sort by timestamp (oldest first)
+	sort.Slice(logs, func(i, j int) bool {
+		return logs[i].Timestamp.Before(logs[j].Timestamp)
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(logs)
+
 }
 
 // Create new session and token for new users
@@ -107,7 +158,7 @@ func CreateSession(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(fmt.Sprintf(`
-	✅ Your webhook token has been created!
+	Your webhook token has been created!
 
 	Use these endpoints:
 	- POST to /api/hooks/%s
