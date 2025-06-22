@@ -146,11 +146,28 @@ func GetWebhookLogs(w http.ResponseWriter, r *http.Request) {
 
 // Create new session and token for new users
 func CreateSession(w http.ResponseWriter, r *http.Request) {
-	token := uuid.New().String()
+	// Check for an existing token in browser cookies
+	oldCookie, err := r.Cookie("webhook_token")
+	if err == nil {
+		oldToken := oldCookie.Value
+		pattern := fmt.Sprintf("hooks:%s:*", oldToken)
+
+		keys, err := redis.Client.Keys(context.Background(), pattern).Result()
+		if err == nil && len(keys) > 0 {
+			if err := redis.Client.Del(context.Background(), keys...).Err(); err == nil {
+				log.Printf("🔄 Deleted old token and %d keys for token %s\n", len(keys), oldToken)
+			} else {
+				log.Printf("Failed to delete keys for old token %s: %v\n", oldToken, err)
+			}
+		}
+	}
+
+	// Generate and assign new token
+	newToken := uuid.New().String()
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "webhook_token",
-		Value:    token,
+		Value:    newToken,
 		Path:     "/",
 		HttpOnly: true,
 		MaxAge:   86400 * 3, // 3 days
@@ -163,7 +180,7 @@ func CreateSession(w http.ResponseWriter, r *http.Request) {
 	Use these endpoints:
 	- POST to /api/hooks/%s
 	- GET from /logs/%s
-	`, token, token)))
+	`, newToken, newToken)))
 }
 
 // Force the user to use their assigned token

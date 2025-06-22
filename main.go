@@ -22,9 +22,10 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// Webhook: '/api/hooks/token'
+	// Post a new webhook
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/hooks", func(r chi.Router) {
+			r.Post("/", handlers.HandleWebhook)
 			r.Post("/{token}", handlers.HandleWebhook)
 		})
 	})
@@ -33,6 +34,7 @@ func main() {
 	r.Get("/create", handlers.CreateSession)
 
 	// Get logs
+	r.Get("/logs", handlers.GetWebhookLogs)
 	r.Get("/logs/{token}", handlers.GetWebhookLogs)
 
 	// Error handling
