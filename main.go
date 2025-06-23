@@ -37,6 +37,12 @@ func main() {
 	r.Get("/logs", handlers.GetWebhookLogs)
 	r.Get("/logs/{token}", handlers.GetWebhookLogs)
 
+	// Get token status
+	r.Get("/status", handlers.GetTokenStatus)
+
+	// Reset current token
+	r.Post("/reset", handlers.ResetToken)
+
 	// Error handling
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("⚠️  No matching route for %s %s\n", r.Method, r.URL.Path)

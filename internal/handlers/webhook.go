@@ -17,6 +17,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Helpers
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // Home page with instructions
 func Home(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
@@ -95,7 +103,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Printf("Saved webhook with ID %s for token %s\n", id, token)
-	remaining := 5 - count
+	remaining := max(0, 5-int(count))
 	w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Webhook received"))
