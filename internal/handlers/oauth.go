@@ -73,6 +73,8 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	fmt.Fprintf(w, "✅ Logged in as %s!", ghUser.Login)

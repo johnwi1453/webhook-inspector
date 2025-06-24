@@ -185,6 +185,8 @@ func CreateSession(w http.ResponseWriter, r *http.Request) {
 		Value:    newToken,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   86400 * 3, // 3 days
 	})
 

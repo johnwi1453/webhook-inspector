@@ -8,7 +8,7 @@ Webhook Inspector is a backend-focused developer tool that allows engineers to t
 
 ### Backend
 
-* **Go (1.21+)**
+* **Go (1.24+)**
 * **chi** router for HTTP endpoints
 * **Redis** for request storage and rate limiting
 * **OAuth2** login with GitHub (via `golang.org/x/oauth2`)
