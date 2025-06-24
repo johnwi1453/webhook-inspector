@@ -59,6 +59,9 @@ func main() {
 	// Get current logged-in user
 	r.Get("/me", handlers.GetCurrentUser)
 
+	// Get info about logged-in user's token
+	r.Get("/token", handlers.GetWebhookToken)
+
 	// Error handling
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("⚠️  No matching route for %s %s\n", r.Method, r.URL.Path)

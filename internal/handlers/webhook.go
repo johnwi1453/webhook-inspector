@@ -48,7 +48,13 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const MaxRequestsPerToken = 5
+	owner, err := redis.Client.Get(context.Background(), "token:"+token+":owner").Result()
+	isPrivileged := (err == nil && owner != "")
+
+	MaxRequestsPerToken := 5
+	if isPrivileged {
+		MaxRequestsPerToken = 500
+	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -78,11 +84,12 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	countKey := fmt.Sprintf("hooks:%s:count", token)
 
-	count, err := redis.Client.Incr(context.Background(), countKey).Result()
+	count64, err := redis.Client.Incr(context.Background(), countKey).Result()
 	if err != nil {
 		http.Error(w, "failed to track webhook usage", http.StatusInternalServerError)
 		return
 	}
+	count := int(count64) // safe since we're dealing with small numbers
 
 	if count == 1 {
 		// first time we've seen this token — set TTL for 24h
@@ -103,7 +110,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Printf("Saved webhook with ID %s for token %s\n", id, token)
-	remaining := max(0, 5-int(count))
+	remaining := max(0, MaxRequestsPerToken-int(count))
 	w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Webhook received"))

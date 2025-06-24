@@ -8,6 +8,8 @@ import (
 	"webhook-inspector/internal/auth"
 	"webhook-inspector/internal/redis"
 
+	goredis "github.com/redis/go-redis/v9"
+
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 )
@@ -49,6 +51,18 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(resp.Body)
 	json.Unmarshal(body, &ghUser)
 
+	// Lookup existing token
+	existingToken, err := redis.Client.Get(r.Context(), "user:"+ghUser.Login+":webhook_token").Result()
+	if err == goredis.Nil {
+		// No token yet — generate one
+		newToken := uuid.New().String()
+		redis.Client.Set(r.Context(), "user:"+ghUser.Login+":webhook_token", newToken, 0)
+		redis.Client.Set(r.Context(), "token:"+newToken+":owner", ghUser.Login, 0)
+	} else if err == nil {
+		// Token already exists — optional: re-store token:<token>:owner in case it expired
+		redis.Client.Set(r.Context(), "token:"+existingToken+":owner", ghUser.Login, 0)
+	}
+
 	// Generate new token (can be mapped to GitHub ID)
 	sessionToken := uuid.New().String()
 	redis.Client.Set(r.Context(), "user:"+sessionToken, ghUser.Login, 0)
@@ -81,6 +95,38 @@ func GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"logged_in": true,
 		"username":  username,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// Get info about your token
+func GetWebhookToken(w http.ResponseWriter, r *http.Request) {
+	// 1. Get session cookie
+	cookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Error(w, "Not logged in", http.StatusUnauthorized)
+		return
+	}
+
+	// 2. Get GitHub username from session
+	username, err := redis.Client.Get(r.Context(), "user:"+cookie.Value).Result()
+	if err != nil {
+		http.Error(w, "Invalid session", http.StatusUnauthorized)
+		return
+	}
+
+	// 3. Get the user's assigned webhook token
+	webhookToken, err := redis.Client.Get(r.Context(), "user:"+username+":webhook_token").Result()
+	if err != nil {
+		http.Error(w, "No token found for user", http.StatusNotFound)
+		return
+	}
+
+	// 4. Return it as JSON
+	resp := map[string]string{
+		"username":      username,
+		"webhook_token": webhookToken,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
