@@ -1,47 +1,56 @@
 # Webhook Inspector
 
-Webhook Inspector is a backend-focused developer tool that allows engineers to test and debug webhook integrations by creating temporary public endpoints which log and display incoming HTTP requests. Inspired by tools like RequestBin and webhook.site, this project demonstrates backend architecture, infrastructure design, and Go proficiency.
+Webhook Inspector is a backend-focused developer tool that allows engineers to test and debug webhook integrations by creating temporary public endpoints which log and display incoming HTTP requests. Inspired by tools like RequestBin and webhook.site, this project demonstrates backend architecture, infrastructure design, secure session management, and Go proficiency.
 
 ---
 
 ## Tech Stack
 
 ### Backend
-- **Go (1.24+)**
-- **chi** router for HTTP endpoints
-- **Redis** for request storage with TTL
-- **log/slog or zap** for structured logging
-- **OAuth2** authentication (via `goth`)
-- **Rate limiting** using Redis token bucket
-- **Docker** + **Docker Compose**
-- **CI/CD** via GitHub Actions
 
-### Frontend (Optional)
-- Go templates or React (TBD)
-- Tailwind CSS for styling
+* **Go (1.21+)**
+* **chi** router for HTTP endpoints
+* **Redis** for request storage and rate limiting
+* **OAuth2** login with GitHub (via `golang.org/x/oauth2`)
+* **Cookie-based session management**
+* **Per-token rate limiting** (anonymous: 5 req/day, GitHub: 500 req/day)
+* **Docker** + **Docker Compose**
+
+### Frontend (Planned)
+
+* **React** + Tailwind CSS
+* Token and log dashboard for authenticated users
 
 ---
 
 ## Features
 
-- Generate temporary webhook endpoints like `/api/hooks/:token`
-- Capture and log method, headers, body, timestamp, and IP
-- Store payloads in Redis with 24h TTL
-- OAuth2 login with GitHub or Google
-- Redis-based rate limiting (e.g. 100 requests/hour)
-- Endpoint to view logs: `GET /logs`
-- Admin route or CLI to clear logs
-- Dockerized app with CI pipeline
-- Deployable to platforms like Render/Fly.io
+* Generate temporary webhook endpoints like `/api/hooks/:token`
+* Store and retrieve webhook payloads in Redis with 24h TTL
+* Inspect headers, method, body, and timestamp
+* Anonymous session support with unique token generation via `/create`
+* GitHub login support with persistent tokens and elevated rate limits
+* View webhook logs via `/logs` or `/logs/:token`
+* Get token info via `/token` and login state via `/me`
+* `/status` and `/reset` endpoints for managing usage and cleaning up
+* Full API testing support with curl, Postman, or browser
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Docker Desktop
-- Go 1.24+
-- Redis (via Docker or system install)
+
+* Docker Desktop
+* GitHub OAuth App (Client ID + Secret)
+
+### .env Example
+
+```
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+REDIS_ADDR=redis:6379
+```
 
 ---
 
@@ -52,20 +61,29 @@ Webhook Inspector is a backend-focused developer tool that allows engineers to t
 git clone git@github.com:johnwi1453/webhook-inspector.git
 cd webhook-inspector
 
-# Build the app
-go build -o server main.go
-
-# Run the app (or use Docker)
-./server
-```
-
-### Or use Docker
-
-```bash
+# Run with Docker
 docker compose up --build
 ```
 
-App runs at: http://localhost:8080
+App runs at: [http://localhost:8080](http://localhost:8080)
+
+---
+
+## API Overview
+
+| Endpoint                    | Description                                    |
+| --------------------------- | ---------------------------------------------- |
+| `GET /create`               | Assigns a new anonymous token in cookie        |
+| `POST /api/hooks`           | Submit a webhook (uses cookie token)           |
+| `POST /api/hooks/:token`    | Submit a webhook to a specific token           |
+| `GET /logs`                 | View recent webhooks (via cookie token)        |
+| `GET /logs/:token`          | View webhooks for a specific token             |
+| `GET /auth/github`          | Initiate GitHub OAuth2 login                   |
+| `GET /auth/github/callback` | OAuth2 redirect URL                            |
+| `GET /me`                   | Show GitHub login session status               |
+| `GET /token`                | Get your assigned webhook token (if logged in) |
+| `GET /status`               | Show rate limit + TTL for current token        |
+| `POST /reset`               | Clear all logs + usage for current token       |
 
 ---
 
@@ -73,42 +91,38 @@ App runs at: http://localhost:8080
 
 ```
 webhook-inspector/
-├── cmd/                  # main.go (moved to root temporarily)
 ├── internal/
 │   ├── handlers/         # HTTP route logic
 │   ├── redis/            # Redis client setup
-│   ├── auth/             # OAuth2 login
-│   └── middleware/       # Logging, rate limiting, etc
-├── web/templates/        # Optional frontend templates
+│   ├── auth/             # OAuth2 login config
 ├── Dockerfile
 ├── docker-compose.yml
-├── go.mod / go.sum
+├── .env
 ├── main.go
 └── README.md
 ```
 
 ---
 
-## Status
-
-✅ Redis-connected Go server is up  
-🛠️ Next: implement `/api/hooks/:token` for receiving requests  
-💡 Frontend dashboard optional and in progress
-
----
-
-## Sample Logged Webhook Format (in Redis)
+## Example Webhook Payload (stored in Redis)
 
 ```json
 {
-  "id": "a8e2b8d1",
+  "id": "f6f8b2a3",
   "method": "POST",
-  "timestamp": "2025-06-20T03:50:00Z",
-  "ip": "203.0.113.1",
   "headers": {
     "Content-Type": "application/json"
   },
   "body": "{ \"event\": \"signup\", \"user_id\": 123 }",
-  "token": "abc123"
+  "timestamp": "2025-06-22T17:43:00Z"
 }
 ```
+
+---
+
+## Status
+
+✅ Backend logic complete (anonymous + GitHub support)
+✅ Redis TTL + rate limiting + storage
+✅ Full test coverage via browser + Postman
+🛠️ Next: build frontend with React for log visibility and token UX
