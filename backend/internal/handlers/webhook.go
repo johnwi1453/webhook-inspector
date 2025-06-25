@@ -62,6 +62,13 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate JSON
+	var parsedBody interface{}
+	if err := json.Unmarshal(bodyBytes, &parsedBody); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
 	// Generate uuid and key for redis storage
 	id := uuid.New().String()
 	key := fmt.Sprintf("hooks:%s:%s", token, id)
@@ -89,7 +96,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to track webhook usage", http.StatusInternalServerError)
 		return
 	}
-	count := int(count64) // safe since we're dealing with small numbers
+	count := int(count64)
 
 	if count == 1 {
 		// first time we've seen this token — set TTL for 24h

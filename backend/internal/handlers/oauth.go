@@ -2,13 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+	"time"
 	"webhook-inspector/internal/auth"
 	"webhook-inspector/internal/redis"
 
 	goredis "github.com/redis/go-redis/v9"
+
+	"os"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -77,7 +79,13 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	fmt.Fprintf(w, "✅ Logged in as %s!", ghUser.Login)
+	redirect := os.Getenv("FRONTEND_URL")
+	if redirect == "" {
+		redirect = "http://localhost:5173/dashboard" // fallback
+	}
+
+	http.Redirect(w, r, redirect+"?login=1", http.StatusFound)
+
 }
 
 // Get the info of the current logged-in user
@@ -132,4 +140,24 @@ func GetWebhookToken(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// Logout the user and delete their token
+func Logout(w http.ResponseWriter, r *http.Request) {
+	// Clear the cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1, // Expire immediately
+		Expires:  time.Unix(0, 0),
+	})
+
+	redirect := os.Getenv("FRONTEND_URL")
+	if redirect == "" {
+		redirect = "http://localhost:5173/dashboard"
+	}
+
+	http.Redirect(w, r, redirect+"?logout=1", http.StatusFound)
 }
