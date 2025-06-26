@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -17,30 +16,18 @@ func ResetToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete all logs and rate limit counters
+	// Delete all webhook data for this token
 	pattern := fmt.Sprintf("hooks:%s:*", token)
 	keys, _ := redis.Client.Keys(context.Background(), pattern).Result()
 	if len(keys) > 0 {
 		redis.Client.Del(context.Background(), keys...)
 	}
+
+	// Delete the count key
 	redis.Client.Del(context.Background(), fmt.Sprintf("hooks:%s:count", token))
-	redis.Client.Del(context.Background(), fmt.Sprintf("token:%s:owner", token))
 
-	// Generate new token
+	// Generate a new token
 	newToken := uuid.New().String()
-
-	// Check for GitHub session
-	sessionCookie, err := r.Cookie("session_token")
-	if err == nil {
-		username, err := redis.Client.Get(context.Background(), "user:"+sessionCookie.Value).Result()
-		if err == nil {
-			// Replace GitHub user's token
-			redis.Client.Set(context.Background(), "user:"+username+":webhook_token", newToken, 0)
-			redis.Client.Set(context.Background(), "token:"+newToken+":owner", username, 0)
-		}
-	}
-
-	// Overwrite the webhook_token cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "webhook_token",
 		Value:    newToken,
@@ -52,7 +39,7 @@ func ResetToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"new_token": newToken,
-	})
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"success": true, "message": "Token reset complete"}`))
+
 }

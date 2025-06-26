@@ -51,7 +51,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	owner, err := redis.Client.Get(context.Background(), "token:"+token+":owner").Result()
 	isPrivileged := (err == nil && owner != "")
 
-	MaxRequestsPerToken := 5
+	MaxRequestsPerToken := 50
 	if isPrivileged {
 		MaxRequestsPerToken = 500
 	}
@@ -223,4 +223,29 @@ func GetToken(w http.ResponseWriter, r *http.Request) (string, bool) {
 	}
 
 	return cookie.Value, true
+}
+
+// Delete individual webhooks
+func DeleteWebhook(w http.ResponseWriter, r *http.Request) {
+	token, ok := GetToken(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "Missing webhook ID", http.StatusBadRequest)
+		return
+	}
+
+	key := fmt.Sprintf("hooks:%s:%s", token, id)
+
+	err := redis.Client.Del(context.Background(), key).Err()
+	if err != nil {
+		http.Error(w, "Failed to delete webhook", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Deleted"))
 }

@@ -1,10 +1,16 @@
-export default function LogList({ logs, onSelect }) {
+export default function LogList({ logs, onSelect, onDelete }) {
   if (!logs || logs.length === 0) {
     return (
       <div className="bg-white p-4 rounded border text-gray-500 italic">
         No webhooks received yet.
       </div>
     )
+  }
+
+  function handleDelete(id) {
+    fetch(`/logs/${id}`, { method: "DELETE" })
+      .then(() => onDelete?.())
+      .catch(() => alert("Failed to delete webhook"))
   }
 
   return (
@@ -14,13 +20,21 @@ export default function LogList({ logs, onSelect }) {
         {logs.map((log) => (
           <li
             key={log.id}
-            className="p-2 border rounded hover:bg-gray-100 cursor-pointer"
-            onClick={() => onSelect(log)}
+            className="flex justify-between items-center px-2 py-1 hover:bg-gray-100"
           >
-            <div className="font-mono text-sm">{log.method}</div>
-            <div className="text-xs text-gray-500">
-              {new Date(log.timestamp).toLocaleString()}
-            </div>
+            <button
+              onClick={() => onSelect(log)}
+              className="text-left w-full"
+            >
+              <div className="font-mono text-xs">{log.id.slice(0, 8)}</div>
+              <div className="text-gray-500">{log.timestamp}</div>
+            </button>
+            <button
+              onClick={() => handleDelete(log.id)}
+              className="text-red-500 text-xs ml-2 hover:underline"
+            >
+              ❌
+            </button>
           </li>
         ))}
       </ul>

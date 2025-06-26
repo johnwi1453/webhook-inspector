@@ -38,12 +38,17 @@ func GetTokenStatus(w http.ResponseWriter, r *http.Request) {
 	owner, err := redis.Client.Get(context.Background(), "token:"+token+":owner").Result()
 	isPrivileged := (err == nil && owner != "")
 
+	maxLimit := 50
+	if isPrivileged {
+		maxLimit = 500
+	}
+
 	resp := map[string]interface{}{
 		"token":              token,
 		"requests_used":      count,
-		"requests_remaining": max(0, 5-int(count)),
-		"limit":              5,
-		"ttl_seconds":        int(ttl.Seconds()),
+		"requests_remaining": max(0, maxLimit-int(count)),
+		"limit":              maxLimit,
+		"ttl":                fmt.Sprintf("%dh %dm", int(ttl.Hours()), int(ttl.Minutes())%60),
 		"owner":              owner,
 		"privileged":         isPrivileged,
 	}

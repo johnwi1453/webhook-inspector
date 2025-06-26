@@ -74,15 +74,12 @@ useEffect(() => {
         <div className="grid grid-cols-4 gap-4 mt-4">
           {/* LEFT: Log list */}
           <div className="col-span-1">
-            <LogList logs={logs} onSelect={setSelectedLog} />
+            <LogList logs={logs} onSelect={setSelectedLog} onDelete={refreshLogs} />
           </div>
 
           {/* MIDDLE: Test webhook form + status */}
           <div className="col-span-1">
             <TestWebhookForm token={status?.token} onSent={refreshLogs} />
-            <div className="mt-4">
-              {status && <TokenStatus status={status} />}
-            </div>
           </div>
 
           {/* RIGHT: Selected log details */}

@@ -52,6 +52,9 @@ func main() {
 	// Reset current token
 	r.Post("/reset", handlers.ResetToken)
 
+	// Delete individual webhook
+	r.Delete("/logs/{id}", handlers.DeleteWebhook)
+
 	// Login via Github
 	r.Get("/auth/github", handlers.GitHubLogin)
 	r.Get("/auth/github/callback", handlers.GitHubCallback)
