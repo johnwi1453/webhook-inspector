@@ -20,6 +20,18 @@ const refreshLogs = () => {
     .catch(() => setLogs([]))
 }
 
+const refreshStatus = () => {
+  fetch("/status")
+    .then((res) => {
+      if (!res.ok) throw new Error("Status not ready")
+      return res.json()
+    })
+    .then(setStatus)
+    .catch(() => {
+      setStatus(null)
+    })
+}
+
 useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const justLoggedIn = params.get("login") === "1"
@@ -58,6 +70,10 @@ useEffect(() => {
     <div className="min-h-screen bg-gray-50 text-sm text-gray-800">
       <Header />
 
+      <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded mb-4 max-w-3xl mx-auto">
+      👋 <strong>Welcome to Webhook Inspector</strong> — Create tokens, inspect payloads, and test webhooks.
+      </div>
+
       <div className="p-4 max-w-6xl mx-auto">
         {error && (
           <div className="bg-red-100 text-red-700 p-2 mb-4 rounded">{error}</div>
@@ -79,7 +95,11 @@ useEffect(() => {
 
           {/* MIDDLE: Test webhook form + status */}
           <div className="col-span-1">
-            <TestWebhookForm token={status?.token} onSent={refreshLogs} />
+            <TestWebhookForm token={status?.token} onSent={() => {
+              refreshLogs()
+              refreshStatus()
+            }} />
+
           </div>
 
           {/* RIGHT: Selected log details */}

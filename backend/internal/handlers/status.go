@@ -36,7 +36,19 @@ func GetTokenStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Check if token has a privileged owner
 	owner, err := redis.Client.Get(context.Background(), "token:"+token+":owner").Result()
-	isPrivileged := (err == nil && owner != "")
+	isPrivileged := false
+	if err == nil && owner != "" {
+		isPrivileged = true
+
+		// Optional: verify that session_token matches owner
+		if sessionCookie, err := r.Cookie("session_token"); err == nil {
+			sessionToken := sessionCookie.Value
+			username, _ := redis.Client.Get(context.Background(), "user:"+sessionToken).Result()
+			if username != owner {
+				isPrivileged = false // logged-in user mismatch
+			}
+		}
+	}
 
 	maxLimit := 50
 	if isPrivileged {

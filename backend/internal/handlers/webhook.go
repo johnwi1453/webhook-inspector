@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 // Helpers
@@ -168,23 +169,36 @@ func GetWebhookLogs(w http.ResponseWriter, r *http.Request) {
 
 // Create new session and token for new users
 func CreateSession(w http.ResponseWriter, r *http.Request) {
-	// Check for an existing token in browser cookies
-	oldCookie, err := r.Cookie("webhook_token")
-	if err == nil {
-		oldToken := oldCookie.Value
-		pattern := fmt.Sprintf("hooks:%s:*", oldToken)
-
-		keys, err := redis.Client.Keys(context.Background(), pattern).Result()
-		if err == nil && len(keys) > 0 {
-			if err := redis.Client.Del(context.Background(), keys...).Err(); err == nil {
-				log.Printf("🔄 Deleted old token and %d keys for token %s\n", len(keys), oldToken)
-			} else {
-				log.Printf("Failed to delete keys for old token %s: %v\n", oldToken, err)
+	// First, check if user is logged in via session_token
+	if sessionCookie, err := r.Cookie("session_token"); err == nil {
+		sessionToken := sessionCookie.Value
+		username, err := redis.Client.Get(context.Background(), "user:"+sessionToken).Result()
+		if err == nil && username != "" {
+			// GitHub user: use or create privileged token
+			existingToken, err := redis.Client.Get(context.Background(), "user:"+username+":webhook_token").Result()
+			if err == goredis.Nil {
+				existingToken = uuid.New().String()
+				redis.Client.Set(context.Background(), "user:"+username+":webhook_token", existingToken, 0)
+				redis.Client.Set(context.Background(), "token:"+existingToken+":owner", username, 0)
 			}
+
+			http.SetCookie(w, &http.Cookie{
+				Name:     "webhook_token",
+				Value:    existingToken,
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   86400 * 3,
+			})
+
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte(fmt.Sprintf("✅ Assigned privileged token: %s", existingToken)))
+			return
 		}
 	}
 
-	// Generate and assign new token
+	// If not logged in: generate random anonymous token
 	newToken := uuid.New().String()
 
 	http.SetCookie(w, &http.Cookie{
@@ -194,17 +208,11 @@ func CreateSession(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   86400 * 3, // 3 days
+		MaxAge:   86400 * 3,
 	})
 
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(fmt.Sprintf(`
-	Your webhook token has been created!
-
-	Use these endpoints:
-	- POST to /api/hooks/%s
-	- GET from /logs/%s
-	`, newToken, newToken)))
+	w.Write([]byte(fmt.Sprintf("✅ Assigned new anonymous token: %s", newToken)))
 }
 
 // Force the user to use their assigned token
