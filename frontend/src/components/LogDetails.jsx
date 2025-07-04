@@ -11,7 +11,7 @@ export default function LogDetails({ log, onClose }) {
         &times;
       </button>
 
-      <h3 className="text-lg font-semibold mb-2">📦 Webhook Details</h3>
+      <h3 className="text-lg font-semibold mb-2">Webhook Details</h3>
 
       <p className="text-xs text-gray-500 mb-2">ID: {log.id}</p>
       <p className="text-xs text-gray-500 mb-2">Time: {new Date(log.timestamp).toLocaleString()}</p>

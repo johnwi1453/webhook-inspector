@@ -28,7 +28,7 @@ export default function TestWebhookForm({ token, onSent }) {
 
   return (
     <div className="bg-white p-4 rounded border">
-      <h3 className="text-lg font-semibold mb-2">🧪 Send Test Webhook</h3>
+      <h3 className="text-lg font-semibold mb-2">Send Test Webhook</h3>
       <form onSubmit={handleSubmit}>
         <textarea
           rows={6}

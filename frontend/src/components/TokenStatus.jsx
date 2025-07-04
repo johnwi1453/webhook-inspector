@@ -11,10 +11,10 @@ export default function TokenStatus({ status }) {
         return res.json()
       })
       .then(() => {
-        alert("✅ Token reset! You now have a new endpoint.")
+        alert("Token reset! You now have a new endpoint.")
         window.location.reload()
       })
-      .catch(() => alert("❌ Failed to reset token"))
+      .catch(() => alert("Failed to reset token"))
   }
 
   function handleNewToken() {
@@ -22,10 +22,10 @@ export default function TokenStatus({ status }) {
 
     fetch("/create")
       .then(() => {
-        alert("🎯 New token created!")
+        alert("New token created!")
         window.location.reload()
       })
-      .catch(() => alert("❌ Failed to create token"))
+      .catch(() => alert("Failed to create token"))
   }
 
   const isPrivileged = status.privileged
@@ -34,7 +34,7 @@ export default function TokenStatus({ status }) {
 
   return (
     <div className="bg-white border rounded p-4 shadow-sm">
-      <h3 className="text-lg font-semibold mb-2">🔐 Token Info</h3>
+      <h3 className="text-lg font-semibold mb-2">Token Info</h3>
 
       <div className="mb-3 text-sm text-gray-600">
         This token is linked to your current session and used to receive webhooks at:
@@ -66,14 +66,14 @@ export default function TokenStatus({ status }) {
           onClick={handleReset}
           className="px-4 py-1.5 rounded bg-red-100 hover:bg-red-200 text-red-800 text-sm font-medium transition"
         >
-          🔄 Reset Token
+          Reset Token
         </button>
 
         <button
           onClick={handleNewToken}
           className="px-4 py-1.5 rounded bg-blue-100 hover:bg-blue-200 text-blue-800 text-sm font-medium transition"
         >
-          🎯 New Token
+          New Token
         </button>
       </div>
     </div>

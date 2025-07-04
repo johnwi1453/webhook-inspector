@@ -24,7 +24,7 @@ func InitRedis() {
 		panic(fmt.Sprintf("Failed to connect to Redis: %v", err))
 	}
 
-	fmt.Println("✅ Connected to Redis")
+	fmt.Println("Connected to Redis")
 }
 
 func getRedisAddr() string {

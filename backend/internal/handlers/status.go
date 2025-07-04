@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
+	"webhook-inspector/internal/config"
 	"webhook-inspector/internal/redis"
 )
 
@@ -15,11 +17,12 @@ func GetTokenStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	countKey := fmt.Sprintf("hooks:%s:count", token)
+	countKey := fmt.Sprintf("rate_limit:%s", token)
 
 	// Get usage count
 	count, err := redis.Client.Get(context.Background(), countKey).Int()
 	if err != nil && err.Error() != "redis: nil" {
+		log.Printf("GetTokenStatus: failed to fetch usage count for token %s: %v", token, err)
 		http.Error(w, "failed to fetch usage count", http.StatusInternalServerError)
 		return
 	}
@@ -30,6 +33,7 @@ func GetTokenStatus(w http.ResponseWriter, r *http.Request) {
 	// Get TTL
 	ttl, err := redis.Client.TTL(context.Background(), countKey).Result()
 	if err != nil {
+		log.Printf("GetTokenStatus: failed to fetch TTL for token %s: %v", token, err)
 		http.Error(w, "failed to fetch TTL", http.StatusInternalServerError)
 		return
 	}
@@ -50,9 +54,9 @@ func GetTokenStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	maxLimit := 50
+	maxLimit := config.AnonymousRateLimit
 	if isPrivileged {
-		maxLimit = 500
+		maxLimit = config.PrivilegedRateLimit
 	}
 
 	resp := map[string]interface{}{

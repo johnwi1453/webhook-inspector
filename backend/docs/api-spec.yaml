@@ -1,0 +1,557 @@
+openapi: 3.0.3
+info:
+  title: Webhook Inspector API
+  description: |
+    Webhook Inspector is a developer tool for testing and debugging webhook integrations.
+    It provides temporary public endpoints to capture and inspect incoming HTTP requests.
+    
+    ## Authentication
+    - **Anonymous users**: 50 requests per 24 hours
+    - **GitHub users**: 500 requests per 24 hours (login via `/auth/github`)
+    - Uses cookie-based session management
+    
+    ## Rate Limiting
+    Rate limits are enforced per token with automatic 24-hour reset periods.
+  version: 1.0.0
+  contact:
+    name: Webhook Inspector
+    url: https://github.com/johnwi1453/webhook-inspector
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: webhooks
+    description: Webhook capture and management
+  - name: authentication
+    description: GitHub OAuth authentication
+  - name: session
+    description: Session and token management
+  - name: health
+    description: Health check endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check
+      description: Returns server health status
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+
+  /create:
+    get:
+      tags:
+        - session
+      summary: Create anonymous session
+      description: |
+        Creates a new anonymous webhook token and sets it in a cookie.
+        Anonymous users get 50 requests per 24 hours.
+      responses:
+        '200':
+          description: Token created successfully
+          headers:
+            Set-Cookie:
+              description: Webhook token cookie
+              schema:
+                type: string
+                example: "webhook_token=abc123; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=259200"
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Assigned new anonymous token: abc123..."
+
+  /api/hooks:
+    post:
+      tags:
+        - webhooks
+      summary: Receive webhook (cookie auth)
+      description: |
+        Receives and stores a webhook using cookie-based authentication.
+        Requires a valid webhook_token cookie from `/create` or GitHub login.
+      security:
+        - cookieAuth: []
+      requestBody:
+        description: Webhook payload (any JSON or form data)
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            examples:
+              simple:
+                summary: Simple event
+                value:
+                  event: "user.signup"
+                  user_id: 12345
+              complex:
+                summary: Complex payload
+                value:
+                  event: "payment.succeeded"
+                  data:
+                    amount: 2000
+                    currency: "usd"
+                    customer_id: "cus_123"
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: true
+          text/plain:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: Webhook received successfully
+          headers:
+            X-RateLimit-Remaining:
+              description: Remaining requests in current period
+              schema:
+                type: integer
+                example: 49
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Webhook received"
+        '400':
+          description: Invalid request body
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "invalid JSON body"
+        '403':
+          description: Missing or invalid webhook token cookie
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Missing webhook_token cookie"
+        '429':
+          description: Rate limit exceeded
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "rate limit exceeded for this token"
+        '500':
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "failed to save webhook"
+
+  /api/hooks/{token}:
+    post:
+      tags:
+        - webhooks
+      summary: Receive webhook (direct token)
+      description: |
+        Receives and stores a webhook using direct token authentication.
+        Useful for external services that can't use cookies.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Webhook token
+          schema:
+            type: string
+            example: "abc123-def456-ghi789"
+      requestBody:
+        description: Webhook payload (any JSON or form data)
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            examples:
+              stripe:
+                summary: Stripe webhook
+                value:
+                  id: "evt_1234567890"
+                  object: "event"
+                  type: "payment_intent.succeeded"
+                  data:
+                    object:
+                      id: "pi_1234567890"
+                      amount: 2000
+                      currency: "usd"
+              github:
+                summary: GitHub webhook
+                value:
+                  ref: "refs/heads/main"
+                  commits:
+                    - id: "abc123def456"
+                      message: "Fix webhook handling"
+                      author:
+                        name: "John Doe"
+                        email: "john@example.com"
+      responses:
+        '200':
+          description: Webhook received successfully
+          headers:
+            X-RateLimit-Remaining:
+              description: Remaining requests in current period
+              schema:
+                type: integer
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Webhook received"
+        '400':
+          description: Invalid request body
+        '403':
+          description: Invalid token
+        '429':
+          description: Rate limit exceeded
+        '500':
+          description: Internal server error
+
+  /logs:
+    get:
+      tags:
+        - webhooks
+      summary: Get webhook logs
+      description: |
+        Retrieves all webhook logs for the current token.
+        Requires cookie authentication.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: List of webhook logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookPayload'
+        '403':
+          description: Missing or invalid webhook token cookie
+
+  /logs/{id}:
+    delete:
+      tags:
+        - webhooks
+      summary: Delete webhook log
+      description: |
+        Deletes a specific webhook log by ID.
+        Requires cookie authentication.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Webhook ID to delete
+          schema:
+            type: string
+            format: uuid
+            example: "f6f8b2a3-4c5d-6e7f-8901-234567890abc"
+      responses:
+        '200':
+          description: Webhook deleted successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Deleted"
+        '400':
+          description: Missing webhook ID
+        '403':
+          description: Missing or invalid webhook token cookie
+        '500':
+          description: Failed to delete webhook
+
+  /status:
+    get:
+      tags:
+        - session
+      summary: Get token status
+      description: |
+        Returns current token usage, rate limits, and TTL information.
+        Requires cookie authentication.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Token status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenStatus'
+        '403':
+          description: Missing or invalid webhook token cookie
+        '500':
+          description: Failed to fetch status
+
+  /reset:
+    post:
+      tags:
+        - session
+      summary: Reset token and clear data
+      description: |
+        Clears all webhook logs and generates a new token.
+        Preserves GitHub user association if logged in.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Token reset successfully
+          headers:
+            Set-Cookie:
+              description: New webhook token cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Token reset complete"
+        '403':
+          description: Missing or invalid webhook token cookie
+        '500':
+          description: Failed to reset token
+
+  /auth/github:
+    get:
+      tags:
+        - authentication
+      summary: Initiate GitHub OAuth
+      description: |
+        Redirects to GitHub OAuth authorization page.
+        After successful login, user gets elevated rate limits (500 req/day).
+      responses:
+        '302':
+          description: Redirect to GitHub OAuth
+          headers:
+            Location:
+              description: GitHub OAuth URL
+              schema:
+                type: string
+                example: "https://github.com/login/oauth/authorize?client_id=..."
+
+  /auth/github/callback:
+    get:
+      tags:
+        - authentication
+      summary: GitHub OAuth callback
+      description: |
+        Handles GitHub OAuth callback and creates authenticated session.
+        Sets both session_token and webhook_token cookies.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: OAuth authorization code from GitHub
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          description: OAuth state parameter
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend with login success
+          headers:
+            Set-Cookie:
+              description: Session and webhook token cookies
+              schema:
+                type: string
+            Location:
+              description: Frontend URL with login parameter
+              schema:
+                type: string
+                example: "http://localhost:5173/dashboard?login=1"
+        '400':
+          description: Missing authorization code
+        '500':
+          description: OAuth flow failed
+
+  /me:
+    get:
+      tags:
+        - authentication
+      summary: Get current user
+      description: |
+        Returns information about the currently logged-in GitHub user.
+        Requires session_token cookie from GitHub login.
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '401':
+          description: Not logged in or invalid session
+
+  /logout:
+    get:
+      tags:
+        - authentication
+      summary: Logout user
+      description: |
+        Logs out the current GitHub user and generates a new anonymous token.
+        Clears session_token cookie and sets new webhook_token.
+      responses:
+        '302':
+          description: Redirect to frontend with logout confirmation
+          headers:
+            Set-Cookie:
+              description: Cleared session cookie and new webhook token
+              schema:
+                type: string
+            Location:
+              description: Frontend URL with logout parameter
+              schema:
+                type: string
+                example: "http://localhost:5173/dashboard?logout=1"
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: webhook_token
+      description: Webhook token cookie for API access
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session_token
+      description: Session token cookie for authenticated user operations
+
+  schemas:
+    WebhookPayload:
+      type: object
+      description: Stored webhook data
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique webhook identifier
+          example: "f6f8b2a3-4c5d-6e7f-8901-234567890abc"
+        method:
+          type: string
+          description: HTTP method used
+          example: "POST"
+          enum: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
+        headers:
+          type: object
+          description: HTTP headers received
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            Content-Type: ["application/json"]
+            X-GitHub-Event: ["push"]
+            User-Agent: ["GitHub-Hookshot/abc123"]
+        body:
+          type: string
+          description: Raw request body
+          example: '{"event": "user.signup", "user_id": 12345}'
+        timestamp:
+          type: string
+          format: date-time
+          description: When the webhook was received
+          example: "2025-06-23T14:30:45.123Z"
+      required:
+        - id
+        - method
+        - headers
+        - body
+        - timestamp
+
+    TokenStatus:
+      type: object
+      description: Current token usage and limits
+      properties:
+        token:
+          type: string
+          description: Current webhook token
+          example: "abc123-def456-ghi789"
+        requests_used:
+          type: integer
+          description: Number of requests used in current period
+          example: 15
+        requests_remaining:
+          type: integer
+          description: Number of requests remaining in current period
+          example: 485
+        limit:
+          type: integer
+          description: Total request limit for current period
+          example: 500
+        ttl:
+          type: string
+          description: Time until rate limit resets
+          example: "18h 45m"
+        owner:
+          type: string
+          nullable: true
+          description: GitHub username if authenticated
+          example: "john-doe"
+        privileged:
+          type: boolean
+          description: Whether this is a privileged (GitHub) token
+          example: true
+      required:
+        - token
+        - requests_used
+        - requests_remaining
+        - limit
+        - ttl
+        - privileged
+
+    CurrentUser:
+      type: object
+      description: Current authenticated user information
+      properties:
+        logged_in:
+          type: boolean
+          description: Whether user is logged in
+          example: true
+        username:
+          type: string
+          description: GitHub username
+          example: "john-doe"
+      required:
+        - logged_in
+        - username
+
+    Error:
+      type: object
+      description: Error response
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "rate limit exceeded for this token"
+      required:
+        - error

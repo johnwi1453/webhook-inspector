@@ -23,9 +23,6 @@ func main() {
 
 	r := chi.NewRouter()
 
-	// Home page
-	r.Get("/", handlers.Home)
-
 	// Get health
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
@@ -44,7 +41,6 @@ func main() {
 
 	// Get logs
 	r.Get("/logs", handlers.GetWebhookLogs)
-	r.Get("/logs/{token}", handlers.GetWebhookLogs)
 
 	// Get token status
 	r.Get("/status", handlers.GetTokenStatus)
@@ -62,11 +58,15 @@ func main() {
 	// Get current logged-in user
 	r.Get("/me", handlers.GetCurrentUser)
 
-	// Get info about logged-in user's token
-	r.Get("/token", handlers.GetWebhookToken)
-
 	// Logout user
 	r.Get("/logout", handlers.Logout)
+
+	// Swagger UI for API documentation
+	r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/docs/", http.StatusMovedPermanently)
+	})
+	r.Get("/docs/", handlers.SwaggerUI)
+	r.Get("/docs/api-spec.yaml", handlers.SwaggerSpec)
 
 	// Error handling
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {

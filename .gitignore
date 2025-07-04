@@ -2,15 +2,15 @@
 .env
 .env.*
 
-# Go build artifacts
-server
-webhook-inspector
-
 # OS files
 .DS_Store
 
 # Logs
 *.log
 
-# Memory bank
-.memory-bank
+# IDE files
+.vscode/settings.json
+.idea/
+
+# Temporary files
+*.tmp

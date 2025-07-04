@@ -8,8 +8,10 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
+	"webhook-inspector/internal/config"
 	"webhook-inspector/internal/models"
 	"webhook-inspector/internal/redis"
 
@@ -26,20 +28,29 @@ func max(a, b int) int {
 	return b
 }
 
-// Home page with instructions
-func Home(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`
-	Welcome to Webhook Inspector
+// Helper function to sanitize sensitive data from logs
+func sanitizeForLogging(data string) string {
+	// List of sensitive field patterns to redact
+	sensitivePatterns := []string{
+		"password", "token", "secret", "key", "auth", "credential",
+		"bearer", "api_key", "apikey", "access_token", "refresh_token",
+		"client_secret", "private_key", "ssh_key", "certificate",
+	}
 
-	Use this tool to test and debug webhooks.
-	- Visit /create to generate your own personal token.
-	- Send POST requests to /api/hooks/{your_token}
-	- View your received webhooks at /logs/{your_token}
+	// If data is too long, truncate it
+	if len(data) > 500 {
+		data = data[:500] + "...[truncated]"
+	}
 
-	Each user has their own token saved in a cookie.
-	`))
+	// Check if any sensitive patterns are present (case insensitive)
+	lowerData := strings.ToLower(data)
+	for _, pattern := range sensitivePatterns {
+		if strings.Contains(lowerData, pattern) {
+			return "[REDACTED - contains sensitive data]"
+		}
+	}
+
+	return data
 }
 
 // Store webhook in Redis
@@ -49,16 +60,18 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check privilege status and set rate limit
 	owner, err := redis.Client.Get(context.Background(), "token:"+token+":owner").Result()
 	isPrivileged := (err == nil && owner != "")
 
-	MaxRequestsPerToken := 50
+	maxRequestsPerToken := config.AnonymousRateLimit
 	if isPrivileged {
-		MaxRequestsPerToken = 500
+		maxRequestsPerToken = config.PrivilegedRateLimit
 	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
+		log.Printf("HandleWebhook: failed to read request body for token %s: %v", token, err)
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
@@ -66,6 +79,9 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Validate JSON
 	var parsedBody interface{}
 	if err := json.Unmarshal(bodyBytes, &parsedBody); err != nil {
+		// Sanitize body data before logging
+		sanitizedBody := sanitizeForLogging(string(bodyBytes))
+		log.Printf("HandleWebhook: invalid JSON body for token %s: %v, body: %s", token, err, sanitizedBody)
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
@@ -86,39 +102,45 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Format into json data
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
+		log.Printf("HandleWebhook: failed to marshal payload for token %s: %v", token, err)
 		http.Error(w, "failed parse request body into json", http.StatusInternalServerError)
 		return
 	}
 
-	countKey := fmt.Sprintf("hooks:%s:count", token)
+	countKey := fmt.Sprintf("rate_limit:%s", token)
 
-	count64, err := redis.Client.Incr(context.Background(), countKey).Result()
+	// Use Redis pipeline for atomic increment and TTL setting
+	pipe := redis.Client.Pipeline()
+	incrCmd := pipe.Incr(context.Background(), countKey)
+
+	// Always set TTL to ensure it doesn't get lost
+	pipe.Expire(context.Background(), countKey, config.RateLimitTTL)
+
+	_, err = pipe.Exec(context.Background())
 	if err != nil {
+		log.Printf("HandleWebhook: failed to execute rate limit pipeline for token %s: %v", token, err)
 		http.Error(w, "failed to track webhook usage", http.StatusInternalServerError)
 		return
 	}
-	count := int(count64)
 
-	if count == 1 {
-		// first time we've seen this token — set TTL for 24h
-		redis.Client.Expire(context.Background(), countKey, 24*time.Hour)
-	}
+	count := int(incrCmd.Val())
 
-	if count > MaxRequestsPerToken {
+	if count > maxRequestsPerToken {
 		log.Printf("Token %s blocked (rate limit %d)", token, count)
 		http.Error(w, "rate limit exceeded for this token", http.StatusTooManyRequests)
 		return
 	}
 
 	// Write webhook into redis
-	err = redis.Client.Set(context.Background(), key, jsonData, 24*time.Hour).Err()
+	err = redis.Client.Set(context.Background(), key, jsonData, config.WebhookDataTTL).Err()
 	if err != nil {
+		log.Printf("HandleWebhook: failed to save webhook for token %s: %v", token, err)
 		http.Error(w, "failed to save webhook", http.StatusInternalServerError)
 		return
 	}
 
 	fmt.Printf("Saved webhook with ID %s for token %s\n", id, token)
-	remaining := max(0, MaxRequestsPerToken-int(count))
+	remaining := max(0, maxRequestsPerToken-int(count))
 	w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Webhook received"))
@@ -135,6 +157,7 @@ func GetWebhookLogs(w http.ResponseWriter, r *http.Request) {
 
 	keys, err := redis.Client.Keys(context.Background(), pattern).Result()
 	if err != nil {
+		log.Printf("GetWebhookLogs: failed to fetch keys for token %s: %v", token, err)
 		http.Error(w, "failed to fetch keys", http.StatusInternalServerError)
 		return
 	}
@@ -187,13 +210,13 @@ func CreateSession(w http.ResponseWriter, r *http.Request) {
 				Value:    existingToken,
 				Path:     "/",
 				HttpOnly: true,
-				Secure:   true,
+				Secure:   isSecureContext(r),
 				SameSite: http.SameSiteLaxMode,
-				MaxAge:   86400 * 3,
+				MaxAge:   config.SessionCookieTTL,
 			})
 
 			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte(fmt.Sprintf("✅ Assigned privileged token: %s", existingToken)))
+			w.Write([]byte(fmt.Sprintf("Assigned privileged token: %s", existingToken)))
 			return
 		}
 	}
@@ -206,13 +229,13 @@ func CreateSession(w http.ResponseWriter, r *http.Request) {
 		Value:    newToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureContext(r),
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   86400 * 3,
+		MaxAge:   config.SessionCookieTTL,
 	})
 
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(fmt.Sprintf("✅ Assigned new anonymous token: %s", newToken)))
+	w.Write([]byte(fmt.Sprintf("Assigned new anonymous token: %s", newToken)))
 }
 
 // Force the user to use their assigned token
@@ -250,6 +273,7 @@ func DeleteWebhook(w http.ResponseWriter, r *http.Request) {
 
 	err := redis.Client.Del(context.Background(), key).Err()
 	if err != nil {
+		log.Printf("DeleteWebhook: failed to delete webhook %s for token %s: %v", id, token, err)
 		http.Error(w, "Failed to delete webhook", http.StatusInternalServerError)
 		return
 	}

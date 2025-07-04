@@ -19,7 +19,7 @@ export default function Header() {
       <div className="text-sm">
         {user ? (
           <div className="flex items-center gap-4">
-            <span>👤 {user}</span>
+            <span>{user}</span>
             <a
               href="/logout"
               className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"

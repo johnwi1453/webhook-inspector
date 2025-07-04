@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import TokenStatus from "../components/TokenStatus"
 import LogList from "../components/LogList"
 import TestWebhookForm from "../components/TestWebhookForm"
 import LogDetails from "../components/LogDetails"
 import Header from "../components/Header"
-import { useCallback } from "react"
 
 
 export default function Dashboard() {
@@ -43,11 +42,11 @@ useEffect(() => {
     const justLoggedOut = params.get("logout") === "1"
 
     if (justLoggedIn) {
-      setLoginToastMsg("✅ Logged in successfully")
+      setLoginToastMsg("Logged in successfully")
     }
 
     if (justLoggedOut) {
-      setLoginToastMsg("👋 Logged out successfully")
+      setLoginToastMsg("Logged out successfully")
     }
 
     if (justLoggedIn || justLoggedOut) {
@@ -77,7 +76,7 @@ useEffect(() => {
 
       {!status && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded mb-4 max-w-3xl mx-auto">
-          <p className="mb-2">👋 Welcome to Webhook Inspector! Create tokens, inspect payloads, and test webhooks.</p>
+          <p className="mb-2">Welcome to Webhook Inspector! Create tokens, inspect payloads, and test webhooks.</p>
           <button
             onClick={() => {
               fetch("/create")
@@ -86,13 +85,12 @@ useEffect(() => {
             }}
             className="bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-3 py-1 rounded text-sm"
           >
-            🎯 Create Webhook Token
+            Create Webhook Token
           </button>
         </div>
       )}
 
       <div className="p-4 max-w-6xl mx-auto">
-
         {loginToastMsg && (
           <div className="bg-green-100 text-green-800 p-2 rounded mb-3">
             {loginToastMsg}
@@ -111,7 +109,6 @@ useEffect(() => {
           <div className="col-span-1">
             <TestWebhookForm token={status?.token} onSent={handleWebhookSent}
           />
-
           </div>
 
           {/* RIGHT: Selected log details */}
@@ -119,7 +116,6 @@ useEffect(() => {
             <LogDetails log={selectedLog} onClose={() => setSelectedLog(null)} />
           </div>
         </div>
-
       </div>
     </div>
   )

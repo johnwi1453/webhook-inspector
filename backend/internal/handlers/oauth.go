@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"time"
 	"webhook-inspector/internal/auth"
+	"webhook-inspector/internal/config"
 	"webhook-inspector/internal/redis"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -15,6 +17,25 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 )
+
+// Helper function to determine if we should use Secure flag on cookies
+func isSecureContext(r *http.Request) bool {
+	// Use Secure flag if:
+	// 1. Request is HTTPS, or
+	// 2. We're in production (FRONTEND_URL contains https), or
+	// 3. Explicitly set via environment variable
+	if r.TLS != nil {
+		return true
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL != "" && len(frontendURL) >= 5 && frontendURL[:5] == "https" {
+		return true
+	}
+
+	// For development, allow insecure cookies
+	return false
+}
 
 // Redirects user to GitHub login
 func GitHubLogin(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +53,7 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	token, err := auth.ExchangeCodeForToken(code)
 	if err != nil {
+		log.Printf("GitHubCallback: failed to exchange code for token: %v", err)
 		http.Error(w, "Failed to exchange token", http.StatusInternalServerError)
 		return
 	}
@@ -40,6 +62,7 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	client := auth.GithubOAuthConfig.Client(r.Context(), token)
 	resp, err := client.Get("https://api.github.com/user")
 	if err != nil || resp.StatusCode != 200 {
+		log.Printf("GitHubCallback: failed to get user info from GitHub API: %v, status: %d", err, resp.StatusCode)
 		http.Error(w, "Failed to get user info", http.StatusInternalServerError)
 		return
 	}
@@ -58,15 +81,16 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	existingToken, err := redis.Client.Get(r.Context(), "user:"+ghUser.Login+":webhook_token").Result()
 	if err == goredis.Nil {
-		// No token — generate a new one
+		// If no token, generate a new one
 		finalToken = uuid.New().String()
 		redis.Client.Set(r.Context(), "user:"+ghUser.Login+":webhook_token", finalToken, 0)
 		redis.Client.Set(r.Context(), "token:"+finalToken+":owner", ghUser.Login, 0)
 	} else if err == nil {
-		// Token exists — ensure owner is registered
+		// If token exists, ensure owner is registered
 		finalToken = existingToken
 		redis.Client.Set(r.Context(), "token:"+finalToken+":owner", ghUser.Login, 0)
 	} else {
+		log.Printf("GitHubCallback: Redis error getting webhook token for user %s: %v", ghUser.Login, err)
 		http.Error(w, "Redis error", http.StatusInternalServerError)
 		return
 	}
@@ -77,22 +101,24 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    finalToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureContext(r),
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   86400 * 3,
+		MaxAge:   config.SessionCookieTTL,
 	})
 
-	// Step 4: Set session_token cookie
+	// Step 4: Set session_token cookie with proper expiration
 	sessionToken := uuid.New().String()
-	redis.Client.Set(r.Context(), "user:"+sessionToken, ghUser.Login, 0)
+	sessionTTL := time.Duration(config.SessionCookieTTL) * time.Second
+	redis.Client.Set(r.Context(), "user:"+sessionToken, ghUser.Login, sessionTTL)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureContext(r),
 		SameSite: http.SameSiteLaxMode,
+		MaxAge:   config.SessionCookieTTL,
 	})
 
 	// Step 5: Redirect to frontend
@@ -125,38 +151,6 @@ func GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// Get info about your token
-func GetWebhookToken(w http.ResponseWriter, r *http.Request) {
-	// 1. Get session cookie
-	cookie, err := r.Cookie("session_token")
-	if err != nil {
-		http.Error(w, "Not logged in", http.StatusUnauthorized)
-		return
-	}
-
-	// 2. Get GitHub username from session
-	username, err := redis.Client.Get(r.Context(), "user:"+cookie.Value).Result()
-	if err != nil {
-		http.Error(w, "Invalid session", http.StatusUnauthorized)
-		return
-	}
-
-	// 3. Get the user's assigned webhook token
-	webhookToken, err := redis.Client.Get(r.Context(), "user:"+username+":webhook_token").Result()
-	if err != nil {
-		http.Error(w, "No token found for user", http.StatusNotFound)
-		return
-	}
-
-	// 4. Return it as JSON
-	resp := map[string]string{
-		"username":      username,
-		"webhook_token": webhookToken,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
 // Logout the user and delete their token
 func Logout(w http.ResponseWriter, r *http.Request) {
 	// Clear the cookie
@@ -176,9 +170,9 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		Value:    newToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureContext(r),
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   86400 * 3,
+		MaxAge:   config.SessionCookieTTL,
 	})
 
 	redirect := os.Getenv("FRONTEND_URL")
