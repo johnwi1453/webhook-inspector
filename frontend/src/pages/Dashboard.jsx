@@ -4,33 +4,38 @@ import LogList from "../components/LogList"
 import TestWebhookForm from "../components/TestWebhookForm"
 import LogDetails from "../components/LogDetails"
 import Header from "../components/Header"
+import { useCallback } from "react"
+
 
 export default function Dashboard() {
   const [status, setStatus] = useState(null)
   const [logs, setLogs] = useState([])
   const [selectedLog, setSelectedLog] = useState(null)
-  const [error, setError] = useState(null)
   const [loginToastMsg, setLoginToastMsg] = useState(null)
 
 
-const refreshLogs = () => {
+const refreshLogs = useCallback(() => {
   fetch("/logs")
     .then((res) => res.json())
     .then(setLogs)
     .catch(() => setLogs([]))
-}
+}, [])
 
-const refreshStatus = () => {
+const refreshStatus = useCallback(() => {
   fetch("/status")
     .then((res) => {
-      if (!res.ok) throw new Error("Status not ready")
+      if (!res.ok) throw new Error("Not authenticated or missing token")
       return res.json()
     })
     .then(setStatus)
-    .catch(() => {
-      setStatus(null)
-    })
-}
+    .catch(() => setStatus(null))
+}, [])
+
+const handleWebhookSent = useCallback(() => {
+  refreshLogs()
+  refreshStatus()
+}, [refreshLogs, refreshStatus])
+
 
 useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -70,14 +75,23 @@ useEffect(() => {
     <div className="min-h-screen bg-gray-50 text-sm text-gray-800">
       <Header />
 
-      <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded mb-4 max-w-3xl mx-auto">
-      👋 <strong>Welcome to Webhook Inspector</strong> — Create tokens, inspect payloads, and test webhooks.
-      </div>
+      {!status && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded mb-4 max-w-3xl mx-auto">
+          <p className="mb-2">👋 Welcome to Webhook Inspector! Create tokens, inspect payloads, and test webhooks.</p>
+          <button
+            onClick={() => {
+              fetch("/create")
+                .then(() => window.location.reload())
+                .catch(() => alert("Failed to create token"))
+            }}
+            className="bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-3 py-1 rounded text-sm"
+          >
+            🎯 Create Webhook Token
+          </button>
+        </div>
+      )}
 
       <div className="p-4 max-w-6xl mx-auto">
-        {error && (
-          <div className="bg-red-100 text-red-700 p-2 mb-4 rounded">{error}</div>
-        )}
 
         {loginToastMsg && (
           <div className="bg-green-100 text-green-800 p-2 rounded mb-3">
@@ -95,10 +109,8 @@ useEffect(() => {
 
           {/* MIDDLE: Test webhook form + status */}
           <div className="col-span-1">
-            <TestWebhookForm token={status?.token} onSent={() => {
-              refreshLogs()
-              refreshStatus()
-            }} />
+            <TestWebhookForm token={status?.token} onSent={handleWebhookSent}
+          />
 
           </div>
 

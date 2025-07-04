@@ -36,7 +36,7 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch user info from GitHub
+	// Step 1: Get user info from GitHub
 	client := auth.GithubOAuthConfig.Client(r.Context(), token)
 	resp, err := client.Get("https://api.github.com/user")
 	if err != nil || resp.StatusCode != 200 {
@@ -53,23 +53,39 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(resp.Body)
 	json.Unmarshal(body, &ghUser)
 
-	// Lookup existing token
+	// Step 2: Look up or create a webhook token for this user
+	var finalToken string
+
 	existingToken, err := redis.Client.Get(r.Context(), "user:"+ghUser.Login+":webhook_token").Result()
 	if err == goredis.Nil {
-		// No token yet — generate one
-		newToken := uuid.New().String()
-		redis.Client.Set(r.Context(), "user:"+ghUser.Login+":webhook_token", newToken, 0)
-		redis.Client.Set(r.Context(), "token:"+newToken+":owner", ghUser.Login, 0)
+		// No token — generate a new one
+		finalToken = uuid.New().String()
+		redis.Client.Set(r.Context(), "user:"+ghUser.Login+":webhook_token", finalToken, 0)
+		redis.Client.Set(r.Context(), "token:"+finalToken+":owner", ghUser.Login, 0)
 	} else if err == nil {
-		// Token already exists — optional: re-store token:<token>:owner in case it expired
-		redis.Client.Set(r.Context(), "token:"+existingToken+":owner", ghUser.Login, 0)
+		// Token exists — ensure owner is registered
+		finalToken = existingToken
+		redis.Client.Set(r.Context(), "token:"+finalToken+":owner", ghUser.Login, 0)
+	} else {
+		http.Error(w, "Redis error", http.StatusInternalServerError)
+		return
 	}
 
-	// Generate new token (can be mapped to GitHub ID)
+	// Step 3: Set webhook_token cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "webhook_token",
+		Value:    finalToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   86400 * 3,
+	})
+
+	// Step 4: Set session_token cookie
 	sessionToken := uuid.New().String()
 	redis.Client.Set(r.Context(), "user:"+sessionToken, ghUser.Login, 0)
 
-	// Set secure cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    sessionToken,
@@ -79,13 +95,12 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// Step 5: Redirect to frontend
 	redirect := os.Getenv("FRONTEND_URL")
 	if redirect == "" {
-		redirect = "http://localhost:5173/dashboard" // fallback
+		redirect = "http://localhost:5173/dashboard"
 	}
-
 	http.Redirect(w, r, redirect+"?login=1", http.StatusFound)
-
 }
 
 // Get the info of the current logged-in user
@@ -152,6 +167,18 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		MaxAge:   -1, // Expire immediately
 		Expires:  time.Unix(0, 0),
+	})
+
+	newToken := uuid.New().String()
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "webhook_token",
+		Value:    newToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   86400 * 3,
 	})
 
 	redirect := os.Getenv("FRONTEND_URL")
