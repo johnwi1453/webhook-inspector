@@ -1,6 +1,6 @@
 # Webhook Inspector
 
-Webhook Inspector is a backend-focused developer tool that allows engineers to test and debug webhook integrations by creating temporary public endpoints which log and display incoming HTTP requests. Inspired by tools like RequestBin and webhook.site, this project demonstrates backend architecture, infrastructure design, secure session management, and Go proficiency.
+Webhook Inspector is a backend-focused developer tool that allows engineers to test and debug webhook integrations by creating temporary public endpoints which log and display incoming HTTP requests. Inspired by tools like RequestBin and webhook.site.
 
 ---
 
@@ -13,7 +13,7 @@ Webhook Inspector is a backend-focused developer tool that allows engineers to t
 * **Redis** for request storage and rate limiting
 * **OAuth2** login with GitHub (via `golang.org/x/oauth2`)
 * **Cookie-based session management**
-* **Per-token rate limiting** (anonymous: 5 req/day, GitHub: 500 req/day)
+* **Per-token rate limiting** (anonymous: 50 req/day, GitHub: 500 req/day)
 * **Docker** + **Docker Compose**
 
 ### Frontend (Planned)
@@ -30,7 +30,7 @@ Webhook Inspector is a backend-focused developer tool that allows engineers to t
 * Inspect headers, method, body, and timestamp
 * Anonymous session support with unique token generation via `/create`
 * GitHub login support with persistent tokens and elevated rate limits
-* View webhook logs via `/logs` or `/logs/:token`
+* View webhook logs via `/logs`
 * Get token info via `/token` and login state via `/me`
 * `/status` and `/reset` endpoints for managing usage and cleaning up
 * Full API testing support with curl, Postman, or browser
@@ -337,10 +337,3 @@ webhook-inspector/
 ```
 
 ---
-
-## Status
-
-✅ Backend logic complete (anonymous + GitHub support)
-✅ Redis TTL + rate limiting + storage
-✅ Full test coverage via browser + Postman
-🛠️ Next: build frontend with React for log visibility and token UX
