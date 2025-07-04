@@ -7,17 +7,10 @@ import (
 	"webhook-inspector/internal/handlers"
 	"webhook-inspector/internal/redis"
 
-	"github.com/joho/godotenv"
-
 	"github.com/go-chi/chi/v5"
 )
 
 func main() {
-	// Load .env values before anything else
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 	redis.InitRedis()
 	log.Println("GITHUB_CLIENT_ID =", os.Getenv("GITHUB_CLIENT_ID"))
 
