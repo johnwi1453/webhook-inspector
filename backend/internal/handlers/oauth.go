@@ -122,14 +122,8 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Step 5: Redirect to frontend
-	redirect := os.Getenv("FRONTEND_URL")
-	if redirect == "" {
-		// For same-domain deployment, redirect to local path
-		http.Redirect(w, r, "/dashboard?login=1", http.StatusFound)
-	} else {
-		// For external frontend URL, use full URL
-		http.Redirect(w, r, redirect+"/dashboard?login=1", http.StatusFound)
-	}
+	// Always redirect to local path for same-domain deployment
+	http.Redirect(w, r, "/dashboard?login=1", http.StatusFound)
 }
 
 // Get the info of the current logged-in user
@@ -178,12 +172,6 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   config.SessionCookieTTL,
 	})
 
-	redirect := os.Getenv("FRONTEND_URL")
-	if redirect == "" {
-		// For same-domain deployment, redirect to local path
-		http.Redirect(w, r, "/dashboard?logout=1", http.StatusFound)
-	} else {
-		// For external frontend URL, use full URL
-		http.Redirect(w, r, redirect+"/dashboard?logout=1", http.StatusFound)
-	}
+	// Always redirect to local path for same-domain deployment
+	http.Redirect(w, r, "/dashboard?logout=1", http.StatusFound)
 }
