@@ -14,14 +14,14 @@ export default function Dashboard() {
 
 
 const refreshLogs = useCallback(() => {
-  fetch("/api/logs")
+  fetch("/logs")
     .then((res) => res.json())
     .then(setLogs)
     .catch(() => setLogs([]))
 }, [])
 
 const refreshStatus = useCallback(() => {
-  fetch("/api/status")
+  fetch("/status")
     .then((res) => {
       if (!res.ok) throw new Error("Not authenticated or missing token")
       return res.json()
@@ -57,16 +57,16 @@ useEffect(() => {
     }
 
     // fetch data
-    fetch("/api/status")
+    fetch("/status")
       .then((res) => {
         if (!res.ok) throw new Error("Not authenticated or missing token")
         return res.json()
       })
       .then(setStatus)
-      .catch((err) => setError(err.message))
+      .catch(() => setStatus(null))
 
     refreshLogs()
-  }, [])
+  }, [refreshLogs])
 
 
 
@@ -79,7 +79,7 @@ useEffect(() => {
           <p className="mb-2">Welcome to Webhook Inspector! Create tokens, inspect payloads, and test webhooks.</p>
           <button
             onClick={() => {
-              fetch("/api/create")
+              fetch("/create")
                 .then(() => window.location.reload())
                 .catch(() => alert("Failed to create token"))
             }}
@@ -107,8 +107,7 @@ useEffect(() => {
 
           {/* MIDDLE: Test webhook form + status */}
           <div className="col-span-1">
-            <TestWebhookForm token={status?.token} onSent={handleWebhookSent}
-          />
+            <TestWebhookForm token={status?.token} onSent={handleWebhookSent} />
           </div>
 
           {/* RIGHT: Selected log details */}

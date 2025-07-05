@@ -17,31 +17,23 @@ func main() {
 
 	r := chi.NewRouter()
 
-	r.Route("/api", func(r chi.Router) {
-		// Webhooks
-		r.Route("/hooks", func(r chi.Router) {
-			r.Post("/", handlers.HandleWebhook)
-			r.Post("/{token}", handlers.HandleWebhook)
-		})
-
-		// Token mgmt
-		r.Get("/create", handlers.CreateSession)
-		r.Get("/logs", handlers.GetWebhookLogs)
-		r.Get("/status", handlers.GetTokenStatus)
-		r.Post("/reset", handlers.ResetToken)
-		r.Delete("/logs/{id}", handlers.DeleteWebhook)
-
-		// Auth
-		r.Get("/auth/github", handlers.GitHubLogin)
-		r.Get("/auth/github/callback", handlers.GitHubCallback)
-		r.Get("/me", handlers.GetCurrentUser)
-		r.Get("/logout", handlers.Logout)
+	// Webhooks
+	r.Route("/hooks", func(r chi.Router) {
+		r.Post("/", handlers.HandleWebhook)
+		r.Post("/{token}", handlers.HandleWebhook)
 	})
 
-	// GitHub OAuth callback (needs to be outside /api for GitHub redirect)
-	r.Get("/auth/github/callback", handlers.GitHubCallback)
+	// Token mgmt
+	r.Get("/create", handlers.CreateSession)
+	r.Get("/logs", handlers.GetWebhookLogs)
+	r.Get("/status", handlers.GetTokenStatus)
+	r.Post("/reset", handlers.ResetToken)
+	r.Delete("/logs/{id}", handlers.DeleteWebhook)
 
-	// Logout route (also handle outside /api for direct access)
+	// Auth
+	r.Get("/auth/github", handlers.GitHubLogin)
+	r.Get("/auth/github/callback", handlers.GitHubCallback)
+	r.Get("/me", handlers.GetCurrentUser)
 	r.Get("/logout", handlers.Logout)
 
 	// Dashboard routes - serve the React SPA

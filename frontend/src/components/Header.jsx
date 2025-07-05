@@ -4,7 +4,7 @@ export default function Header() {
   const [user, setUser] = useState(null)
 
   useEffect(() => {
-    fetch("/api/me")
+    fetch("/me")
       .then((res) => res.json())
       .then((data) => {
         if (data.logged_in) setUser(data.username)
@@ -28,12 +28,12 @@ export default function Header() {
             </a>
           </div>
         ) : (
-          <a
-            href="/api/auth/github"
-            className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
-          >
-            Login with GitHub
-          </a>
+            <a
+              href="/auth/github"
+              className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
+            >
+              Login with GitHub
+            </a>
         )}
       </div>
     </header>

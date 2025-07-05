@@ -11,7 +11,7 @@ export default function TestWebhookForm({ token, onSent }) {
     setError(null)
 
     try {
-      const res = await fetch(`/api/hooks/${token}`, {
+      const res = await fetch(`/hooks/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: jsonBody,

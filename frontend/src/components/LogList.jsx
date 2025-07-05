@@ -8,7 +8,7 @@ export default function LogList({ logs, onSelect, onDelete }) {
   }
 
   function handleDelete(id) {
-    fetch(`/api/logs/${id}`, { method: "DELETE" })
+    fetch(`/logs/${id}`, { method: "DELETE" })
       .then(() => onDelete?.())
       .catch(() => alert("Failed to delete webhook"))
   }
