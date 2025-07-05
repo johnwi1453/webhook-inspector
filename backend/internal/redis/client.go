@@ -14,8 +14,8 @@ var Ctx = context.Background()
 func InitRedis() {
 	Client = redis.NewClient(&redis.Options{
 		Addr:     getRedisAddr(),
-		Password: "", // no password by default
-		DB:       0,  // use default DB
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0,
 	})
 
 	// Ping to verify connection
