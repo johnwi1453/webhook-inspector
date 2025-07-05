@@ -124,7 +124,11 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	// Step 5: Redirect to frontend
 	redirect := os.Getenv("FRONTEND_URL")
 	if redirect == "" {
-		redirect = "http://localhost:5173/dashboard"
+		// For same-domain deployment, redirect to local path
+		redirect = "/dashboard"
+	} else {
+		// For external frontend URL, use full URL
+		redirect = redirect + "/dashboard"
 	}
 	http.Redirect(w, r, redirect+"?login=1", http.StatusFound)
 }
@@ -177,7 +181,11 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 
 	redirect := os.Getenv("FRONTEND_URL")
 	if redirect == "" {
-		redirect = "http://localhost:5173/dashboard"
+		// For same-domain deployment, redirect to local path
+		redirect = "/dashboard"
+	} else {
+		// For external frontend URL, use full URL
+		redirect = redirect + "/dashboard"
 	}
 
 	http.Redirect(w, r, redirect+"?logout=1", http.StatusFound)

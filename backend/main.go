@@ -38,6 +38,9 @@ func main() {
 		r.Get("/logout", handlers.Logout)
 	})
 
+	// GitHub OAuth callback (needs to be outside /api for GitHub redirect)
+	r.Get("/auth/github/callback", handlers.GitHubCallback)
+
 	// Dashboard routes - serve the React SPA
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./frontend/dist/index.html")
