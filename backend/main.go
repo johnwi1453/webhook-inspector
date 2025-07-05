@@ -57,8 +57,8 @@ func main() {
 
 	// Error handling
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("No matching route for %s %s\n", r.Method, r.URL.Path)
-		http.NotFound(w, r)
+		log.Printf("Serving frontend fallback for: %s", r.URL.Path)
+		http.ServeFile(w, r, "./frontend/dist/index.html")
 	})
 
 	r.Get("/debug/files", func(w http.ResponseWriter, r *http.Request) {
