@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -58,6 +59,17 @@ func main() {
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("No matching route for %s %s\n", r.Method, r.URL.Path)
 		http.NotFound(w, r)
+	})
+
+	r.Get("/debug/files", func(w http.ResponseWriter, r *http.Request) {
+		files, err := os.ReadDir("./frontend/dist")
+		if err != nil {
+			http.Error(w, "Could not read dist", 500)
+			return
+		}
+		for _, f := range files {
+			fmt.Fprintln(w, f.Name())
+		}
 	})
 
 	// Serve dist folder
