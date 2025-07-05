@@ -125,12 +125,11 @@ func GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	redirect := os.Getenv("FRONTEND_URL")
 	if redirect == "" {
 		// For same-domain deployment, redirect to local path
-		redirect = "/dashboard"
+		http.Redirect(w, r, "/dashboard?login=1", http.StatusFound)
 	} else {
 		// For external frontend URL, use full URL
-		redirect = redirect + "/dashboard"
+		http.Redirect(w, r, redirect+"/dashboard?login=1", http.StatusFound)
 	}
-	http.Redirect(w, r, redirect+"?login=1", http.StatusFound)
 }
 
 // Get the info of the current logged-in user
@@ -182,11 +181,9 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	redirect := os.Getenv("FRONTEND_URL")
 	if redirect == "" {
 		// For same-domain deployment, redirect to local path
-		redirect = "/dashboard"
+		http.Redirect(w, r, "/dashboard?logout=1", http.StatusFound)
 	} else {
 		// For external frontend URL, use full URL
-		redirect = redirect + "/dashboard"
+		http.Redirect(w, r, redirect+"/dashboard?logout=1", http.StatusFound)
 	}
-
-	http.Redirect(w, r, redirect+"?logout=1", http.StatusFound)
 }
