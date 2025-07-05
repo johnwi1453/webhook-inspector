@@ -4,7 +4,7 @@ export default function Header() {
   const [user, setUser] = useState(null)
 
   useEffect(() => {
-    fetch("/me")
+    fetch("/api/me")
       .then((res) => res.json())
       .then((data) => {
         if (data.logged_in) setUser(data.username)
@@ -21,7 +21,7 @@ export default function Header() {
           <div className="flex items-center gap-4">
             <span>{user}</span>
             <a
-              href="/logout"
+              href="/api/logout"
               className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
             >
               Logout
@@ -29,7 +29,7 @@ export default function Header() {
           </div>
         ) : (
           <a
-            href="/auth/github"
+            href="/api/auth/github"
             className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
           >
             Login with GitHub

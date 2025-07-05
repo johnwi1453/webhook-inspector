@@ -16,43 +16,36 @@ func main() {
 
 	r := chi.NewRouter()
 
-	// Get health
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
-	})
-
-	// Post a new webhook
 	r.Route("/api", func(r chi.Router) {
+		// Webhooks
 		r.Route("/hooks", func(r chi.Router) {
 			r.Post("/", handlers.HandleWebhook)
 			r.Post("/{token}", handlers.HandleWebhook)
 		})
+
+		// Token mgmt
+		r.Get("/create", handlers.CreateSession)
+		r.Get("/logs", handlers.GetWebhookLogs)
+		r.Get("/status", handlers.GetTokenStatus)
+		r.Post("/reset", handlers.ResetToken)
+		r.Delete("/logs/{id}", handlers.DeleteWebhook)
+
+		// Auth
+		r.Get("/auth/github", handlers.GitHubLogin)
+		r.Get("/auth/github/callback", handlers.GitHubCallback)
+		r.Get("/me", handlers.GetCurrentUser)
+		r.Get("/logout", handlers.Logout)
 	})
 
-	// Create a webhook token for new users
-	r.Get("/create", handlers.CreateSession)
+	// Dashboard is homepage
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/dashboard", http.StatusTemporaryRedirect)
+	})
 
-	// Get logs
-	r.Get("/logs", handlers.GetWebhookLogs)
-
-	// Get token status
-	r.Get("/status", handlers.GetTokenStatus)
-
-	// Reset current token
-	r.Post("/reset", handlers.ResetToken)
-
-	// Delete individual webhook
-	r.Delete("/logs/{id}", handlers.DeleteWebhook)
-
-	// Login via Github
-	r.Get("/auth/github", handlers.GitHubLogin)
-	r.Get("/auth/github/callback", handlers.GitHubCallback)
-
-	// Get current logged-in user
-	r.Get("/me", handlers.GetCurrentUser)
-
-	// Logout user
-	r.Get("/logout", handlers.Logout)
+	// Get health
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
 
 	// Swagger UI for API documentation
 	r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {

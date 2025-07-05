@@ -5,7 +5,7 @@ export default function TokenStatus({ status }) {
       return
     }
 
-    fetch("/reset", { method: "POST" })
+    fetch("/api/reset", { method: "POST" })
       .then((res) => {
         if (!res.ok) throw new Error("Reset failed")
         return res.json()
@@ -20,7 +20,7 @@ export default function TokenStatus({ status }) {
   function handleNewToken() {
     if (!window.confirm("This will generate a brand new token and discard the old one. Proceed?")) return;
 
-    fetch("/create")
+    fetch("/api/create")
       .then(() => {
         alert("New token created!")
         window.location.reload()

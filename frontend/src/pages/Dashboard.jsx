@@ -14,14 +14,14 @@ export default function Dashboard() {
 
 
 const refreshLogs = useCallback(() => {
-  fetch("/logs")
+  fetch("/api/logs")
     .then((res) => res.json())
     .then(setLogs)
     .catch(() => setLogs([]))
 }, [])
 
 const refreshStatus = useCallback(() => {
-  fetch("/status")
+  fetch("/api/status")
     .then((res) => {
       if (!res.ok) throw new Error("Not authenticated or missing token")
       return res.json()
@@ -57,7 +57,7 @@ useEffect(() => {
     }
 
     // fetch data
-    fetch("/status")
+    fetch("/api/status")
       .then((res) => {
         if (!res.ok) throw new Error("Not authenticated or missing token")
         return res.json()
@@ -79,7 +79,7 @@ useEffect(() => {
           <p className="mb-2">Welcome to Webhook Inspector! Create tokens, inspect payloads, and test webhooks.</p>
           <button
             onClick={() => {
-              fetch("/create")
+              fetch("/api/create")
                 .then(() => window.location.reload())
                 .catch(() => alert("Failed to create token"))
             }}
