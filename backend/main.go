@@ -38,9 +38,12 @@ func main() {
 		r.Get("/logout", handlers.Logout)
 	})
 
-	// Dashboard is homepage
+	// Dashboard routes - serve the React SPA
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/dashboard", http.StatusTemporaryRedirect)
+		http.ServeFile(w, r, "./frontend/dist/index.html")
+	})
+	r.Get("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./frontend/dist/index.html")
 	})
 
 	// Get health
@@ -55,12 +58,7 @@ func main() {
 	r.Get("/docs/", handlers.SwaggerUI)
 	r.Get("/docs/api-spec.yaml", handlers.SwaggerSpec)
 
-	// Error handling
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Serving frontend fallback for: %s", r.URL.Path)
-		http.ServeFile(w, r, "./frontend/dist/index.html")
-	})
-
+	// Debug endpoint to check files
 	r.Get("/debug/files", func(w http.ResponseWriter, r *http.Request) {
 		files, err := os.ReadDir("./frontend/dist")
 		if err != nil {
@@ -72,12 +70,16 @@ func main() {
 		}
 	})
 
-	// Serve dist folder
-	fs := http.StripPrefix("/", http.FileServer(http.Dir("./frontend/dist")))
-	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Frontend fallback hit for path:", r.URL.Path)
-		fs.ServeHTTP(w, r)
-	}))
+	// Serve static files from frontend/dist
+	fs := http.FileServer(http.Dir("./frontend/dist"))
+	r.Handle("/assets/*", fs)
+	r.Handle("/vite.svg", fs)
+
+	// Serve index.html for all other routes (SPA fallback)
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Serving frontend fallback for: %s", r.URL.Path)
+		http.ServeFile(w, r, "./frontend/dist/index.html")
+	})
 
 	log.Println("Starting server on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {

@@ -19,6 +19,7 @@ WORKDIR /
 
 COPY --from=builder /app/backend/webhook-inspector .
 COPY --from=builder /app/frontend/dist ./frontend/dist
+COPY --from=builder /app/backend/docs ./docs
 
 USER nonroot:nonroot
 EXPOSE 8080
