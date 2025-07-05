@@ -18,6 +18,7 @@ FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 
 COPY --from=builder /app/webhook-inspector .
+COPY --from=builder /app/docs ./docs
 
 # Run as non-root
 USER nonroot:nonroot
