@@ -1,10 +1,39 @@
+# Git
 .git
 .gitignore
-node_modules
-frontend/node_modules
-*.log
-*.DS_Store
+
+# Environment files
 .env
+.env.*
 frontend/.env
 backend/.env
+
+# Dependencies
+node_modules
+frontend/node_modules
+
+# Build artifacts
 dist
+frontend/dist
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# IDE files
+.vscode
+.idea
+
+# Documentation
+README.md
+*.md
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Railway
+railway.toml

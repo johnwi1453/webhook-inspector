@@ -12,5 +12,13 @@
 .vscode/settings.json
 .idea/
 
+# Build artifacts
+dist/
+node_modules/
+
+# Go build artifacts
+*.exe
+go.work
+
 # Temporary files
 *.tmp
